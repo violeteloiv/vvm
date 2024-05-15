@@ -13,7 +13,6 @@
 
 #define VVM_STACK_CAPACITY 1024
 #define VVM_PROGRAM_CAPACITY 1024
-#define VVM_EXECUTION_LIMIT 69
 
 typedef struct {
     size_t count;
@@ -101,6 +100,7 @@ typedef struct {
 } vvm_t;
 
 error vm_execute_inst(vvm_t* p_vm);
+error vm_execute_program(vvm_t* p_vm, int p_limit);
 void vm_dump_stack(FILE* p_stream, const vvm_t* p_vm);
 void vm_push_inst(vvm_t* p_vm, inst_t p_inst);
 void vm_load_program_from_memory(vvm_t* p_vm, inst_t* p_program, size_t p_program_size);
@@ -400,6 +400,23 @@ error vm_execute_inst(vvm_t* p_vm)
         
         default:
             return ERR_ILLEGAL_INSTRUCTION;
+    }
+
+    return ERR_OK;
+}
+
+error vm_execute_program(vvm_t* p_vm, int p_limit)
+{
+    // If p_limit is positive, it will execute a finite number of instructions,
+    // While if p_limit is negative, it will execute instructions without limit.
+    while (p_limit != 0 && !p_vm->halt)
+    {
+        error err = vm_execute_inst(p_vm);
+        if (err != ERR_OK)
+            return err;
+
+        if (p_limit > 0)
+            --p_limit;
     }
 
     return ERR_OK;

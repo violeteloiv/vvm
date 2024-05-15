@@ -3,17 +3,44 @@
 
 vvm_t vm = {0};
 
+const char* shift(int* argc, char*** argv)
+{
+    assert(*argc > 0);
+
+    char* result = **argv;
+    *argv += 1;
+    *argc -= 1;
+
+    return result;
+}
+
+void usage(FILE* p_stream, const char* p_program)
+{
+    fprintf(p_stream, "Usage: %s <input.vasm> <output.vm>\n", p_program);
+}
+
 int main(int argc, char** argv)
 {
-    if (argc < 3)
+    // Get the program name.
+    const char* program = shift(&argc, &argv);
+    if (argc == 0)
     {
-        fprintf(stderr, "Usage: ./vasm <input.vasm> <output.vm>\n");
-        fprintf(stderr, "[ERROR]: Expected Input & Output\n");
+        usage(stderr, program);
+        fprintf(stderr, "[ERROR]: Expected Input\n");
         exit(1);
     }
 
-    const char* input_file_path = argv[1];
-    const char* output_file_path = argv[2];
+    // Get the input path.
+    const char* input_file_path = shift(&argc, &argv);
+    if (argc == 0)
+    {
+        usage(stderr, program);
+        fprintf(stderr, "[ERROR]: Expected Output\n");
+        exit(1);
+    }
+
+    // Get the output file.
+    const char* output_file_path = shift(&argc, &argv);
 
     string_view_t source = sv_slurp_file(input_file_path);
     vm.program_size = vm_translate_source(source, vm.program, VVM_PROGRAM_CAPACITY);
