@@ -2,6 +2,7 @@
 #include "./vvm.h"
 
 vvm_t vm = {0};
+label_table_t lt = {0};
 
 const char* shift(int* argc, char*** argv)
 {
@@ -43,7 +44,7 @@ int main(int argc, char** argv)
     const char* output_file_path = shift(&argc, &argv);
 
     string_view_t source = sv_slurp_file(input_file_path);
-    vm.program_size = vm_translate_source(source, vm.program, VVM_PROGRAM_CAPACITY);
+    vm_translate_source(source, &vm, &lt);
     vm_save_program_to_file(&vm, output_file_path);
     
     return 0;

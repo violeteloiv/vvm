@@ -13,6 +13,8 @@
 
 #define VVM_STACK_CAPACITY 1024
 #define VVM_PROGRAM_CAPACITY 1024
+#define VVM_LABEL_CAPACITY 1024
+#define VVM_UNRESOLVED_JMPS_CAPACITY 1024
 
 typedef struct {
     size_t count;
@@ -89,6 +91,27 @@ typedef struct {
 #define MAKE_INST_PRINT_DEBUG   {.type = INST_PRINT_DEBUG}
 
 typedef struct {
+    string_view_t name;
+    word_t addr;
+} label_t;
+
+typedef struct {
+    word_t addr;
+    string_view_t label;
+} unresolved_jump_t;
+
+typedef struct {
+    label_t labels[VVM_LABEL_CAPACITY];
+    size_t labels_size;
+    unresolved_jump_t unresolved_jumps[VVM_UNRESOLVED_JMPS_CAPACITY];
+    size_t unresolved_jumps_size;
+} label_table_t;
+
+word_t label_table_find(label_table_t* p_lt, string_view_t p_name);
+void label_table_push(label_table_t* p_lt, string_view_t p_name, word_t p_addr);
+void label_table_push_unresolved_jmp(label_table_t* p_lt, word_t p_addr, string_view_t p_name);
+
+typedef struct {
     word_t stack[VVM_STACK_CAPACITY];
     word_t stack_size;
 
@@ -106,8 +129,7 @@ void vm_push_inst(vvm_t* p_vm, inst_t p_inst);
 void vm_load_program_from_memory(vvm_t* p_vm, inst_t* p_program, size_t p_program_size);
 void vm_load_program_from_file(vvm_t* p_vm, const char* p_file_path);
 void vm_save_program_to_file(const vvm_t* p_vm, const char* p_file_path);
-inst_t vm_translate_line(string_view_t p_line);
-size_t vm_translate_source(string_view_t p_source, inst_t* p_program, size_t p_program_capacity);
+void vm_translate_source(string_view_t p_source, vvm_t* p_vm, label_table_t* p_lt);
 
 #endif // __VVM_H_INCLUDED__
 
@@ -296,6 +318,36 @@ const char* inst_type_as_cstr(inst_type p_type)
         default:
             assert(0 && "inst_type_as_cstr: Unreachable (How Did You Get Here)");
     }
+}
+
+word_t label_table_find(label_table_t* p_lt, string_view_t p_name)
+{
+    for (size_t i = 0; i < p_lt->labels_size; ++i)
+    {
+        if (sv_equal(p_lt->labels[i].name, p_name))
+            return p_lt->labels[i].addr;
+    }
+
+    fprintf(stderr, "[ERROR]: label `%.*s` does not exist\n", (int)p_name.count, p_name.data);
+    exit(1);
+}
+
+void label_table_push(label_table_t* p_lt, string_view_t p_name, word_t p_addr)
+{
+    assert(p_lt->labels_size < VVM_LABEL_CAPACITY);
+    p_lt->labels[p_lt->labels_size++] = (label_t){
+        .name = p_name,
+        .addr = p_addr
+    };
+}
+
+void label_table_push_unresolved_jmp(label_table_t* p_lt, word_t p_addr, string_view_t p_name)
+{
+    assert(p_lt->unresolved_jumps_size < VVM_UNRESOLVED_JMPS_CAPACITY);
+    p_lt->unresolved_jumps[p_lt->unresolved_jumps_size++] = (unresolved_jump_t){
+        .addr = p_addr,
+        .label = p_name,
+    };
 }
 
 error vm_execute_inst(vvm_t* p_vm)
@@ -505,42 +557,72 @@ void vm_save_program_to_file(const vvm_t* p_vm, const char* p_file_path)
     fclose(f);
 }
 
-inst_t vm_translate_line(string_view_t p_line)
+void vm_translate_source(string_view_t p_source, vvm_t* p_vm, label_table_t* p_lt)
 {
-    p_line = sv_trim_left(p_line);
-    string_view_t inst_name = sv_chop_by_delim(&p_line, ' ');
-    string_view_t operand = sv_trim(sv_chop_by_delim(&p_line, '#'));
-
-    if (sv_equal(inst_name, cstr_as_sv("push"))) {
-        p_line = sv_trim_left(p_line);
-        return (inst_t){.type = INST_PUSH, .operand = sv_to_int(operand)};
-    } else if (sv_equal(inst_name, cstr_as_sv("rdup"))) {
-        p_line = sv_trim_left(p_line);
-        return (inst_t){.type = INST_DUP_REL, .operand = sv_to_int(operand)};
-    } else if (sv_equal(inst_name, cstr_as_sv("add"))) {
-        p_line = sv_trim_left(p_line);
-        return (inst_t){.type = INST_PLUS};
-    } else if (sv_equal(inst_name, cstr_as_sv("jmp"))) {
-        p_line = sv_trim_left(p_line);
-        return (inst_t){.type = INST_JMP, .operand = sv_to_int(operand)};
-    } else {
-        fprintf(stderr, "[ERROR]: Unknown Instruction `%.*s`.\n", (int)inst_name.count, inst_name.data);
-        exit(1);
-    }
-}
-
-size_t vm_translate_source(string_view_t p_source, inst_t* p_program, size_t p_program_capacity)
-{
-    size_t program_size = 0;
     while (p_source.count > 0)
     {
-        assert(program_size < p_program_capacity);
+        assert(p_vm->program_size < VVM_PROGRAM_CAPACITY);
+
         string_view_t line = sv_trim(sv_chop_by_delim(&p_source, '\n'));
         if (line.count > 0 && *line.data != '#')
-            p_program[program_size++] = vm_translate_line(line);
+        {
+            line = sv_trim_left(line);
+            string_view_t inst_name = sv_chop_by_delim(&line, ' ');
+            string_view_t operand = sv_trim(sv_chop_by_delim(&line, '#'));
+
+            if (inst_name.count > 0 && inst_name.data[inst_name.count - 1] == ':') {
+                string_view_t label = {
+                    .count = inst_name.count - 1,
+                    .data = inst_name.data
+                };
+                label_table_push(p_lt, label, p_vm->program_size);
+            } else if (sv_equal(inst_name, cstr_as_sv("push"))) {
+                p_vm->program[p_vm->program_size++] = (inst_t){
+                    .type = INST_PUSH, 
+                    .operand = sv_to_int(operand)
+                };
+            } else if (sv_equal(inst_name, cstr_as_sv("rdup"))) {
+                p_vm->program[p_vm->program_size++] = (inst_t){
+                    .type = INST_DUP_REL, 
+                    .operand = sv_to_int(operand)
+                };
+            } else if (sv_equal(inst_name, cstr_as_sv("add"))) {
+                p_vm->program[p_vm->program_size++] = (inst_t){
+                    .type = INST_PLUS
+                };
+            } else if (sv_equal(inst_name, cstr_as_sv("jmp"))) {
+                label_table_push_unresolved_jmp(p_lt, p_vm->program_size, operand);
+                p_vm->program[p_vm->program_size++] = (inst_t){
+                    .type = INST_JMP
+                };
+            } else {
+                fprintf(stderr, "[ERROR]: Unknown Instruction `%.*s`.\n", (int)inst_name.count, inst_name.data);
+                exit(1);
+            }
+        }
     }
 
-    return program_size;
+    for (size_t i = 0; i < p_lt->unresolved_jumps_size; ++i)
+    {
+        word_t addr = label_table_find(p_lt, p_lt->unresolved_jumps[i].label);
+        p_vm->program[p_lt->unresolved_jumps[i].addr].operand = addr;
+    }
+
+    printf("LABELS: \n");
+    for (size_t i = 0; i < p_lt->labels_size; ++i)
+        fprintf(stdout, "%.*s -> %ld\n", 
+            (int)p_lt->labels[i].name.count, 
+            p_lt->labels[i].name.data, 
+            p_lt->labels[i].addr
+        );
+    
+    printf("UNRESOLVED JUMPS: \n");
+    for (size_t i = 0; i < p_lt->unresolved_jumps_size; ++i)
+        fprintf(stdout, "%ld -> %.*s\n",
+            p_lt->unresolved_jumps[i].addr,
+            (int)p_lt->unresolved_jumps[i].label.count,
+            p_lt->unresolved_jumps[i].label.data
+        );
 }
 
 #endif // VM_IMPLEMENTATION
