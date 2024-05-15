@@ -14,7 +14,10 @@ vmi: ./src/vmi.c
 	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
 clean:
-	rm -rf vvm
+	rm -rf vasm
+	rm -rf vmi
+	rm -rf ./examples/123.vm
+	rm -rf ./examples/fib.vm
 
 .PHONY: examples
 examples: ./examples/fib.vm ./examples/123.vm
