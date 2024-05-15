@@ -576,6 +576,8 @@ void vm_translate_source(string_view_t p_source, vvm_t* p_vm, label_table_t* p_l
                     .data = inst_name.data
                 };
                 label_table_push(p_lt, label, p_vm->program_size);
+            } else if (sv_equal(inst_name, cstr_as_sv("nop"))) {
+                p_vm->program[p_vm->program_size++] = (inst_t){0};
             } else if (sv_equal(inst_name, cstr_as_sv("push"))) {
                 p_vm->program[p_vm->program_size++] = (inst_t){
                     .type = INST_PUSH, 
@@ -591,10 +593,17 @@ void vm_translate_source(string_view_t p_source, vvm_t* p_vm, label_table_t* p_l
                     .type = INST_PLUS
                 };
             } else if (sv_equal(inst_name, cstr_as_sv("jmp"))) {
-                label_table_push_unresolved_jmp(p_lt, p_vm->program_size, operand);
-                p_vm->program[p_vm->program_size++] = (inst_t){
-                    .type = INST_JMP
-                };
+                if (operand.count > 0 && isdigit(*operand.data)) {
+                    p_vm->program[p_vm->program_size++] = (inst_t){
+                        .type = INST_JMP,
+                        .operand = sv_to_int(operand)
+                    };
+                } else {
+                    label_table_push_unresolved_jmp(p_lt, p_vm->program_size, operand);
+                    p_vm->program[p_vm->program_size++] = (inst_t){
+                        .type = INST_JMP
+                    };
+                }
             } else {
                 fprintf(stderr, "[ERROR]: Unknown Instruction `%.*s`.\n", (int)inst_name.count, inst_name.data);
                 exit(1);
@@ -602,27 +611,12 @@ void vm_translate_source(string_view_t p_source, vvm_t* p_vm, label_table_t* p_l
         }
     }
 
+    // Second pass to resolve labels.
     for (size_t i = 0; i < p_lt->unresolved_jumps_size; ++i)
     {
         word_t addr = label_table_find(p_lt, p_lt->unresolved_jumps[i].label);
         p_vm->program[p_lt->unresolved_jumps[i].addr].operand = addr;
     }
-
-    printf("LABELS: \n");
-    for (size_t i = 0; i < p_lt->labels_size; ++i)
-        fprintf(stdout, "%.*s -> %ld\n", 
-            (int)p_lt->labels[i].name.count, 
-            p_lt->labels[i].name.data, 
-            p_lt->labels[i].addr
-        );
-    
-    printf("UNRESOLVED JUMPS: \n");
-    for (size_t i = 0; i < p_lt->unresolved_jumps_size; ++i)
-        fprintf(stdout, "%ld -> %.*s\n",
-            p_lt->unresolved_jumps[i].addr,
-            (int)p_lt->unresolved_jumps[i].label.count,
-            p_lt->unresolved_jumps[i].label.data
-        );
 }
 
 #endif // VM_IMPLEMENTATION
