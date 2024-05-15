@@ -1,10 +1,13 @@
-#include "./vvm.c"
+#define VM_IMPLEMENTATION
+#include "./vvm.h"
+
+vvm_t vm = {0};
 
 int main(int argc, char** argv)
 {
     if (argc < 2)
     {
-        fprintf(stderr, "Usage: ./vmi <input.vm>\n");
+        fprintf(stderr, "Usage: ./vme <input.vm>\n");
         fprintf(stderr, "[ERROR]: Expected Input\n");
         exit(1);
     }

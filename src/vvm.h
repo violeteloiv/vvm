@@ -1,3 +1,6 @@
+#ifndef __VVM_H_INCLUDED__
+#define __VVM_H_INCLUDED__
+
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
@@ -12,6 +15,20 @@
 #define VVM_PROGRAM_CAPACITY 1024
 #define VVM_EXECUTION_LIMIT 69
 
+typedef struct {
+    size_t count;
+    const char* data;
+} string_view_t;
+
+string_view_t cstr_as_sv(const char* p_cstr);
+string_view_t sv_trim_left(string_view_t p_sv);
+string_view_t sv_trim_right(string_view_t p_sv);
+string_view_t sv_trim(string_view_t p_sv);
+string_view_t sv_chop_by_delim(string_view_t* p_sv, char p_delim);
+int sv_equal(string_view_t p_a, string_view_t p_b);
+int sv_to_int(string_view_t p_sv);
+string_view_t sv_slurp_file(const char* p_file_path);
+
 typedef enum {
     ERR_OK = 0,
 
@@ -25,28 +42,7 @@ typedef enum {
     ERR_DIV_BY_ZERO,
 } error;
 
-const char* error_as_cstr(error p_error)
-{
-    switch (p_error)
-    {
-        case ERR_OK:
-            return "ERR_OK";
-        case ERR_STACK_OVERFLOW:
-            return "ERR_STACK_OVERFLOW";
-        case ERR_STACK_UNDERFLOW:
-            return "ERR_STACK_UNDERFLOW";
-        case ERR_ILLEGAL_INSTRUCTION:
-            return "ERR_ILLEGAL_INSTRUCTION";
-        case ERR_ILLEGAL_INSTRUCTION_ACCESS:
-            return "ERR_ILLEGAL_INSTRUCTION_ACCESS";
-        case ERR_ILLEGAL_OPERAND:
-            return "ERR_ILLEGAL_OPERAND";
-        case ERR_DIV_BY_ZERO:
-            return "ERR_DIV_BY_ZERO";
-        default:
-            assert(0 && "error_as_cstr: Unreachable (How Did You Get Here)");
-    }
-}
+const char* error_as_cstr(error p_error);
 
 typedef int64_t word_t;
 
@@ -69,38 +65,7 @@ typedef enum {
     INST_PRINT_DEBUG,
 } inst_type;
 
-const char* inst_type_as_cstr(inst_type p_type)
-{
-    switch (p_type)
-    {
-        case INST_NOP:
-            return "INST_NOP";
-        case INST_PUSH:
-            return "INST_PUSH";
-        case INST_DUP_REL:
-            return "INST_DUP_REL";
-        case INST_PLUS:
-            return "INST_PLUS";
-        case INST_MINUS:
-            return "INST_MINUS";
-        case INST_MULT:
-            return "INST_MULT";
-        case INST_DIV:
-            return "INST_DIV";
-        case INST_JMP:
-            return "INST_JMP";
-        case INST_JMP_NZ:
-            return "INST_JMP_NZ";
-        case INST_EQ:
-            return "INST_EQ";
-        case INST_HALT:
-            return "INST_HALT";
-        case INST_PRINT_DEBUG:
-            return "INST_PRINT_DEBUG";
-        default:
-            assert(0 && "inst_type_as_cstr: Unreachable (How Did You Get Here)");
-    }
-}
+const char* inst_type_as_cstr(inst_type p_type);
 
 typedef struct {
     inst_type type;
@@ -134,6 +99,204 @@ typedef struct {
 
     int halt;
 } vvm_t;
+
+error vm_execute_inst(vvm_t* p_vm);
+void vm_dump_stack(FILE* p_stream, const vvm_t* p_vm);
+void vm_push_inst(vvm_t* p_vm, inst_t p_inst);
+void vm_load_program_from_memory(vvm_t* p_vm, inst_t* p_program, size_t p_program_size);
+void vm_load_program_from_file(vvm_t* p_vm, const char* p_file_path);
+void vm_save_program_to_file(inst_t* p_program, size_t p_program_size, const char* p_file_path);
+inst_t vm_translate_line(string_view_t p_line);
+size_t vm_translate_source(string_view_t p_source, inst_t* p_program, size_t p_program_capacity);
+
+#endif // __VVM_H_INCLUDED__
+
+#ifdef VM_IMPLEMENTATION
+
+string_view_t cstr_as_sv(const char* p_cstr)
+{
+    return (string_view_t) {
+        .count = strlen(p_cstr),
+        .data = p_cstr
+    };
+}
+
+string_view_t sv_trim_left(string_view_t p_sv)
+{
+    size_t i = 0;
+    while (i < p_sv.count && isspace(p_sv.data[i]))
+        i+=1;
+    
+    return (string_view_t){
+        .count = p_sv.count - i,
+        .data = p_sv.data + i,
+    };
+}
+
+string_view_t sv_trim_right(string_view_t p_sv)
+{
+    size_t i = 0;
+    while (i < p_sv.count && isspace(p_sv.data[p_sv.count - 1 - i]))
+        i+=1;
+    
+    return (string_view_t){
+        .count = p_sv.count - i,
+        .data = p_sv.data,
+    };
+}
+
+string_view_t sv_trim(string_view_t p_sv)
+{
+    return sv_trim_right(sv_trim_left(p_sv));
+}
+
+string_view_t sv_chop_by_delim(string_view_t* p_sv, char p_delim)
+{
+    size_t i = 0;
+    while (i < p_sv->count && p_sv->data[i] != p_delim)
+        i += 1;
+
+    string_view_t result = {
+        .count = i,
+        .data = p_sv->data,
+    };
+
+    if (i < p_sv->count)
+    {
+        p_sv->count -= i + 1;
+        p_sv->data += i + 1;
+    }
+    else
+    {
+        p_sv->count -= i;
+        p_sv->data += i;
+    }
+
+    return result;
+}
+
+int sv_equal(string_view_t p_a, string_view_t p_b)
+{
+    if (p_a.count != p_b.count)
+        return 0;
+    else
+        return memcmp(p_a.data, p_b.data, p_a.count) == 0;
+}
+
+int sv_to_int(string_view_t p_sv)
+{
+    int result = 0;
+
+    for (size_t i = 0; i < p_sv.count && isdigit(p_sv.data[i]); ++i)
+        result = result * 10 + *p_sv.data - '0';
+
+    return result;
+}
+
+string_view_t sv_slurp_file(const char* p_file_path)
+{
+    FILE* f = fopen(p_file_path, "r");
+    if (f == NULL)
+    {
+        fprintf(stderr, "[ERROR]: Could Not Open File `%s`: %s\n", p_file_path, strerror(errno));
+        exit(1);
+    }
+
+    if (fseek(f, 0, SEEK_END) < 0)
+    {
+        fprintf(stderr, "[ERROR]: Could Not Read File `%s`: %s\n", p_file_path, strerror(errno));
+        exit(1);
+    }
+
+    long m = ftell(f);
+    if (m < 0)
+    {
+        fprintf(stderr, "[ERROR]: Could Not Read File `%s`: %s\n", p_file_path, strerror(errno));
+        exit(1);
+    }
+
+    char* buffer = malloc(m);
+    if (buffer == NULL)
+    {
+        fprintf(stderr, "[ERROR]: Could Not Allocate Memory For File: %s\n", strerror(errno));
+        exit(1);
+    }
+
+    if (fseek(f, 0, SEEK_SET) < 0)
+    {
+        fprintf(stderr, "[ERROR]: Could Not Read File `%s`: %s\n", p_file_path, strerror(errno));
+        exit(1);
+    }
+
+    size_t n = fread(buffer, 1, m, f);
+    if (ferror(f))
+    {
+        fprintf(stderr, "[ERROR]: Could Not Read File `%s`: %s\n", p_file_path, strerror(errno));
+        exit(1);
+    }
+
+    fclose(f);
+    return (string_view_t){
+        .count = n,
+        .data = buffer
+    };
+}
+
+const char* error_as_cstr(error p_error)
+{
+    switch (p_error)
+    {
+        case ERR_OK:
+            return "ERR_OK";
+        case ERR_STACK_OVERFLOW:
+            return "ERR_STACK_OVERFLOW";
+        case ERR_STACK_UNDERFLOW:
+            return "ERR_STACK_UNDERFLOW";
+        case ERR_ILLEGAL_INSTRUCTION:
+            return "ERR_ILLEGAL_INSTRUCTION";
+        case ERR_ILLEGAL_INSTRUCTION_ACCESS:
+            return "ERR_ILLEGAL_INSTRUCTION_ACCESS";
+        case ERR_ILLEGAL_OPERAND:
+            return "ERR_ILLEGAL_OPERAND";
+        case ERR_DIV_BY_ZERO:
+            return "ERR_DIV_BY_ZERO";
+        default:
+            assert(0 && "error_as_cstr: Unreachable (How Did You Get Here)");
+    }
+}
+
+const char* inst_type_as_cstr(inst_type p_type)
+{
+    switch (p_type)
+    {
+        case INST_NOP:
+            return "INST_NOP";
+        case INST_PUSH:
+            return "INST_PUSH";
+        case INST_DUP_REL:
+            return "INST_DUP_REL";
+        case INST_PLUS:
+            return "INST_PLUS";
+        case INST_MINUS:
+            return "INST_MINUS";
+        case INST_MULT:
+            return "INST_MULT";
+        case INST_DIV:
+            return "INST_DIV";
+        case INST_JMP:
+            return "INST_JMP";
+        case INST_JMP_NZ:
+            return "INST_JMP_NZ";
+        case INST_EQ:
+            return "INST_EQ";
+        case INST_HALT:
+            return "INST_HALT";
+        case INST_PRINT_DEBUG:
+            return "INST_PRINT_DEBUG";
+        default:
+            assert(0 && "inst_type_as_cstr: Unreachable (How Did You Get Here)");
+    }
+}
 
 error vm_execute_inst(vvm_t* p_vm)
 {
@@ -258,16 +421,6 @@ void vm_push_inst(vvm_t* p_vm, inst_t p_inst)
     p_vm->program[p_vm->program_size++] = p_inst;
 }
 
-vvm_t vm = {0};
-inst_t program[] = {
-    MAKE_INST_PUSH(0),     // 0
-    MAKE_INST_PUSH(1),     // 1
-    MAKE_INST_DUP_REL(1),  // 2
-    MAKE_INST_DUP_REL(1),  // 3
-    MAKE_INST_PLUS,        // 4
-    MAKE_INST_JMP(2),      // 5
-};
-
 void vm_load_program_from_memory(vvm_t* p_vm, inst_t* p_program, size_t p_program_size)
 {
     assert(p_program_size < VVM_PROGRAM_CAPACITY);
@@ -335,91 +488,6 @@ void vm_save_program_to_file(inst_t* p_program, size_t p_program_size, const cha
     fclose(f);
 }
 
-typedef struct {
-    size_t count;
-    const char* data;
-} string_view_t;
-
-string_view_t cstr_as_sv(const char* p_cstr)
-{
-    return (string_view_t) {
-        .count = strlen(p_cstr),
-        .data = p_cstr
-    };
-}
-
-string_view_t sv_trim_left(string_view_t p_sv)
-{
-    size_t i = 0;
-    while (i < p_sv.count && isspace(p_sv.data[i]))
-        i+=1;
-    
-    return (string_view_t){
-        .count = p_sv.count - i,
-        .data = p_sv.data + i,
-    };
-}
-
-string_view_t sv_trim_right(string_view_t p_sv)
-{
-    size_t i = 0;
-    while (i < p_sv.count && isspace(p_sv.data[p_sv.count - 1 - i]))
-        i+=1;
-    
-    return (string_view_t){
-        .count = p_sv.count - i,
-        .data = p_sv.data,
-    };
-}
-
-string_view_t sv_trim(string_view_t p_sv)
-{
-    return sv_trim_right(sv_trim_left(p_sv));
-}
-
-string_view_t sv_chop_by_delim(string_view_t* p_sv, char p_delim)
-{
-    size_t i = 0;
-    while (i < p_sv->count && p_sv->data[i] != p_delim)
-        i += 1;
-
-    string_view_t result = {
-        .count = i,
-        .data = p_sv->data,
-    };
-
-    if (i < p_sv->count)
-    {
-        p_sv->count -= i + 1;
-        p_sv->data += i + 1;
-    }
-    else
-    {
-        p_sv->count -= i;
-        p_sv->data += i;
-    }
-
-    return result;
-}
-
-int sv_equal(string_view_t p_a, string_view_t p_b)
-{
-    if (p_a.count != p_b.count)
-        return 0;
-    else
-        return memcmp(p_a.data, p_b.data, p_a.count) == 0;
-}
-
-int sv_to_int(string_view_t p_sv)
-{
-    int result = 0;
-
-    for (size_t i = 0; i < p_sv.count && isdigit(p_sv.data[i]); ++i)
-        result = result * 10 + *p_sv.data - '0';
-
-    return result;
-}
-
 inst_t vm_translate_line(string_view_t p_line)
 {
     p_line = sv_trim_left(p_line);
@@ -459,51 +527,4 @@ size_t vm_translate_source(string_view_t p_source, inst_t* p_program, size_t p_p
     return program_size;
 }
 
-string_view_t slurp_file(const char* p_file_path)
-{
-    FILE* f = fopen(p_file_path, "r");
-    if (f == NULL)
-    {
-        fprintf(stderr, "[ERROR]: Could Not Open File `%s`: %s\n", p_file_path, strerror(errno));
-        exit(1);
-    }
-
-    if (fseek(f, 0, SEEK_END) < 0)
-    {
-        fprintf(stderr, "[ERROR]: Could Not Read File `%s`: %s\n", p_file_path, strerror(errno));
-        exit(1);
-    }
-
-    long m = ftell(f);
-    if (m < 0)
-    {
-        fprintf(stderr, "[ERROR]: Could Not Read File `%s`: %s\n", p_file_path, strerror(errno));
-        exit(1);
-    }
-
-    char* buffer = malloc(m);
-    if (buffer == NULL)
-    {
-        fprintf(stderr, "[ERROR]: Could Not Allocate Memory For File: %s\n", strerror(errno));
-        exit(1);
-    }
-
-    if (fseek(f, 0, SEEK_SET) < 0)
-    {
-        fprintf(stderr, "[ERROR]: Could Not Read File `%s`: %s\n", p_file_path, strerror(errno));
-        exit(1);
-    }
-
-    size_t n = fread(buffer, 1, m, f);
-    if (ferror(f))
-    {
-        fprintf(stderr, "[ERROR]: Could Not Read File `%s`: %s\n", p_file_path, strerror(errno));
-        exit(1);
-    }
-
-    fclose(f);
-    return (string_view_t){
-        .count = n,
-        .data = buffer
-    };
-}
+#endif // VM_IMPLEMENTATION
