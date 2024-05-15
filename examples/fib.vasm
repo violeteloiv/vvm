@@ -1,6 +1,8 @@
-push 0
-push 1
-rdup 1
-rdup 1
-add
-jmp 2
+# First Two Fibonacci Numbers
+    push 0
+    push 1
+# The Loop
+    rdup 1 # these two lines are responsible for
+    rdup 1 # duplicating the previous two numbers to be added.
+    add
+    jmp 2 # Jump to the first duplication

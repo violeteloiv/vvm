@@ -509,21 +509,20 @@ inst_t vm_translate_line(string_view_t p_line)
 {
     p_line = sv_trim_left(p_line);
     string_view_t inst_name = sv_chop_by_delim(&p_line, ' ');
+    string_view_t operand = sv_trim(sv_chop_by_delim(&p_line, '#'));
+
     if (sv_equal(inst_name, cstr_as_sv("push"))) {
         p_line = sv_trim_left(p_line);
-        int operand = sv_to_int(sv_trim_right(p_line));
-        return (inst_t){.type = INST_PUSH, .operand = operand};
+        return (inst_t){.type = INST_PUSH, .operand = sv_to_int(operand)};
     } else if (sv_equal(inst_name, cstr_as_sv("rdup"))) {
         p_line = sv_trim_left(p_line);
-        int addr = sv_to_int(sv_trim_right(p_line));
-        return (inst_t){.type = INST_DUP_REL, .operand = addr};
+        return (inst_t){.type = INST_DUP_REL, .operand = sv_to_int(operand)};
     } else if (sv_equal(inst_name, cstr_as_sv("add"))) {
         p_line = sv_trim_left(p_line);
         return (inst_t){.type = INST_PLUS};
     } else if (sv_equal(inst_name, cstr_as_sv("jmp"))) {
         p_line = sv_trim_left(p_line);
-        int addr = sv_to_int(sv_trim_right(p_line));
-        return (inst_t){.type = INST_JMP, .operand = addr};
+        return (inst_t){.type = INST_JMP, .operand = sv_to_int(operand)};
     } else {
         fprintf(stderr, "[ERROR]: Unknown Instruction `%.*s`.\n", (int)inst_name.count, inst_name.data);
         exit(1);
@@ -537,7 +536,7 @@ size_t vm_translate_source(string_view_t p_source, inst_t* p_program, size_t p_p
     {
         assert(program_size < p_program_capacity);
         string_view_t line = sv_trim(sv_chop_by_delim(&p_source, '\n'));
-        if (line.count > 0)
+        if (line.count > 0 && *line.data != '#')
             p_program[program_size++] = vm_translate_line(line);
     }
 
