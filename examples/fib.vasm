@@ -2,5 +2,5 @@ push 0
 push 1
 rdup 1
 rdup 1
-plus
+add
 jmp 2

@@ -17,7 +17,7 @@ int main(int argc, char** argv)
 
     string_view_t source = sv_slurp_file(input_file_path);
     vm.program_size = vm_translate_source(source, vm.program, VVM_PROGRAM_CAPACITY);
-    vm_save_program_to_file(vm.program, vm.program_size, output_file_path);
+    vm_save_program_to_file(&vm, output_file_path);
     
     return 0;
 }

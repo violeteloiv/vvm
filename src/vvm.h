@@ -105,7 +105,7 @@ void vm_dump_stack(FILE* p_stream, const vvm_t* p_vm);
 void vm_push_inst(vvm_t* p_vm, inst_t p_inst);
 void vm_load_program_from_memory(vvm_t* p_vm, inst_t* p_program, size_t p_program_size);
 void vm_load_program_from_file(vvm_t* p_vm, const char* p_file_path);
-void vm_save_program_to_file(inst_t* p_program, size_t p_program_size, const char* p_file_path);
+void vm_save_program_to_file(const vvm_t* p_vm, const char* p_file_path);
 inst_t vm_translate_line(string_view_t p_line);
 size_t vm_translate_source(string_view_t p_source, inst_t* p_program, size_t p_program_capacity);
 
@@ -469,7 +469,7 @@ void vm_load_program_from_file(vvm_t* p_vm, const char* p_file_path)
     fclose(f);
 }
 
-void vm_save_program_to_file(inst_t* p_program, size_t p_program_size, const char* p_file_path)
+void vm_save_program_to_file(const vvm_t* p_vm, const char* p_file_path)
 {
     FILE* f = fopen(p_file_path, "wb");
     if (f == NULL)
@@ -478,7 +478,7 @@ void vm_save_program_to_file(inst_t* p_program, size_t p_program_size, const cha
         exit(1);
     }
 
-    fwrite(p_program, sizeof(p_program[0]), p_program_size, f);
+    fwrite(p_vm->program, sizeof(p_vm->program[0]), p_vm->program_size, f);
     if (ferror(f))
     {
         fprintf(stderr, "[ERROR]: Could Not Write To File `%s`: %s\n", p_file_path, strerror(errno));
@@ -500,7 +500,7 @@ inst_t vm_translate_line(string_view_t p_line)
         p_line = sv_trim_left(p_line);
         int addr = sv_to_int(sv_trim_right(p_line));
         return (inst_t){.type = INST_DUP_REL, .operand = addr};
-    } else if (sv_equal(inst_name, cstr_as_sv("plus"))) {
+    } else if (sv_equal(inst_name, cstr_as_sv("add"))) {
         p_line = sv_trim_left(p_line);
         return (inst_t){.type = INST_PLUS};
     } else if (sv_equal(inst_name, cstr_as_sv("jmp"))) {

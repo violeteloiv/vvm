@@ -4,7 +4,7 @@ LIBS   =
 .PHONY = clean
 
 .PHONY: all
-all: vasm vme
+all: vasm vme devasm
 
 # $@: name of target, $^ is all the depedencies
 vasm: ./src/vasm.c ./src/vvm.h
@@ -13,9 +13,13 @@ vasm: ./src/vasm.c ./src/vvm.h
 vme: ./src/vme.c ./src/vvm.h
 	$(CC) $(CFLAGS) -o ./build/$@ $^ $(LIBS)
 
+devasm: ./src/devasm.c ./src/vvm.h
+	$(CC) $(CFLAGS) -o ./build/$@ $^ $(LIBS)
+
 clean:
 	rm -rf ./build/vasm
 	rm -rf ./build/vme
+	rm -rf ./build/devasm
 	rm -rf ./examples/123.vm
 	rm -rf ./examples/fib.vm
 
