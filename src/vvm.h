@@ -47,6 +47,13 @@ const char* error_as_cstr(error p_error);
 
 typedef int64_t word_t;
 
+union word_t {
+    int64_t as_s64;
+    uint64_t as_u64;
+    double as_f64;
+    void* as_ptr;
+};
+
 typedef enum {
     INST_NOP = 0,
 
