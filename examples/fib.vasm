@@ -6,7 +6,7 @@
 # First Two Fibonacci Numbers
     push 0
     push 1
-loop:
+loop: 
     rdup 1 # these two lines are responsible for
     rdup 1 # duplicating the previous two numbers to be added.
     add

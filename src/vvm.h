@@ -568,7 +568,6 @@ void vm_translate_source(string_view_t p_source, vvm_t* p_vm, label_table_t* p_l
         {
             line = sv_trim_left(line);
             string_view_t inst_name = sv_chop_by_delim(&line, ' ');
-            string_view_t operand = sv_trim(sv_chop_by_delim(&line, '#'));
 
             if (inst_name.count > 0 && inst_name.data[inst_name.count - 1] == ':') {
                 string_view_t label = {
@@ -576,7 +575,13 @@ void vm_translate_source(string_view_t p_source, vvm_t* p_vm, label_table_t* p_l
                     .data = inst_name.data
                 };
                 label_table_push(p_lt, label, p_vm->program_size);
-            } else if (sv_equal(inst_name, cstr_as_sv("nop"))) {
+
+                // Try to repeat the instruction name.
+                inst_name = sv_trim(sv_chop_by_delim(&line, ' '));
+            } 
+            
+            string_view_t operand = sv_trim(sv_chop_by_delim(&line, '#'));
+            if (sv_equal(inst_name, cstr_as_sv("nop"))) {
                 p_vm->program[p_vm->program_size++] = (inst_t){0};
             } else if (sv_equal(inst_name, cstr_as_sv("push"))) {
                 p_vm->program[p_vm->program_size++] = (inst_t){
