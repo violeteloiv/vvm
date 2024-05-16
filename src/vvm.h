@@ -73,23 +73,6 @@ typedef struct {
     word_t operand;
 } inst_t;
 
-#define MAKE_INST_NOP           {.type = INST_NOP}
-
-#define MAKE_INST_PUSH(value)   {.type = INST_PUSH, .operand=(value)}
-#define MAKE_INST_DUP_REL(pos)  {.type = INST_DUP_REL, .operand=(pos)}
-
-#define MAKE_INST_PLUS          {.type = INST_PLUS}
-#define MAKE_INST_MINUS         {.type = INST_MINUS}
-#define MAKE_INST_MULT          {.type = INST_MULT}
-#define MAKE_INST_DIV           {.type = INST_DIV}
-
-#define MAKE_INST_JMP(addr)     {.type = INST_JMP, .operand=(addr)}
-#define MAKE_INST_JMP_NZ(addr)  {.type = INST_JMP_NZ, .operand=(addr)}
-#define MAKE_INST_EQ            {.type = INST_EQ}
-
-#define MAKE_INST_HALT          {.type = INST_HALT}
-#define MAKE_INST_PRINT_DEBUG   {.type = INST_PRINT_DEBUG}
-
 typedef struct {
     string_view_t name;
     word_t addr;
@@ -611,6 +594,10 @@ void vm_translate_source(string_view_t p_source, vvm_t* p_vm, vasm_t* p_vasm)
                             .type = INST_JMP
                         };
                     }
+                } else if (sv_equal(inst_name, cstr_as_sv("halt"))) {
+                        p_vm->program[p_vm->program_size++] = (inst_t){
+                            .type = INST_HALT
+                        };
                 } else {
                     fprintf(stderr, "[ERROR]: Unknown Instruction `%.*s`.\n", (int)inst_name.count, inst_name.data);
                     exit(1);
