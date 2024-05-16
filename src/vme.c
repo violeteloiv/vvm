@@ -1,7 +1,7 @@
 #define VM_IMPLEMENTATION
 #include "./vvm.h"
 
-const char* shift(int* argc, char*** argv)
+static const char* shift(int* argc, char*** argv)
 {
     assert(*argc > 0);
 
@@ -12,7 +12,7 @@ const char* shift(int* argc, char*** argv)
     return result;
 }
 
-void usage(FILE* p_stream, const char* p_program)
+static void usage(FILE* p_stream, const char* p_program)
 {
     fprintf(p_stream, "Usage: %s -i <input.vm> [-l <limit>] [-h]\n", p_program);
 }

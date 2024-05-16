@@ -14,7 +14,7 @@
 #define VVM_STACK_CAPACITY 1024
 #define VVM_PROGRAM_CAPACITY 1024
 #define VVM_LABEL_CAPACITY 1024
-#define VVM_UNRESOLVED_JMPS_CAPACITY 1024
+#define VVM_DEFERRED_OPERANDS_CAPACITY 1024
 
 typedef struct {
     size_t count;
@@ -96,20 +96,20 @@ typedef struct {
 } label_t;
 
 typedef struct {
-    word_t addr;
-    string_view_t label;
-} unresolved_jump_t;
+    word_t addr;            // Address of an instruction the operand of which
+    string_view_t label;    // refers to a label. It's not the label address.
+} deferred_operand_t;
 
 typedef struct {
     label_t labels[VVM_LABEL_CAPACITY];
     size_t labels_size;
-    unresolved_jump_t unresolved_jumps[VVM_UNRESOLVED_JMPS_CAPACITY];
-    size_t unresolved_jumps_size;
-} label_table_t;
+    deferred_operand_t deferred_operands[VVM_DEFERRED_OPERANDS_CAPACITY];
+    size_t deferred_operands_size;
+} vasm_t;
 
-word_t label_table_find(label_table_t* p_lt, string_view_t p_name);
-void label_table_push(label_table_t* p_lt, string_view_t p_name, word_t p_addr);
-void label_table_push_unresolved_jmp(label_table_t* p_lt, word_t p_addr, string_view_t p_name);
+word_t vasm_find_label_addr(vasm_t* p_vasm, string_view_t p_name);
+void vasm_push_label(vasm_t* p_vasm, string_view_t p_name, word_t p_addr);
+void vasm_push_deferred_operand(vasm_t* p_vasm, word_t p_addr, string_view_t p_name);
 
 typedef struct {
     word_t stack[VVM_STACK_CAPACITY];
@@ -129,7 +129,7 @@ void vm_push_inst(vvm_t* p_vm, inst_t p_inst);
 void vm_load_program_from_memory(vvm_t* p_vm, inst_t* p_program, size_t p_program_size);
 void vm_load_program_from_file(vvm_t* p_vm, const char* p_file_path);
 void vm_save_program_to_file(const vvm_t* p_vm, const char* p_file_path);
-void vm_translate_source(string_view_t p_source, vvm_t* p_vm, label_table_t* p_lt);
+void vm_translate_source(string_view_t p_source, vvm_t* p_vm, vasm_t* p_vasm);
 
 #endif // __VVM_H_INCLUDED__
 
@@ -320,31 +320,31 @@ const char* inst_type_as_cstr(inst_type p_type)
     }
 }
 
-word_t label_table_find(label_table_t* p_lt, string_view_t p_name)
+word_t vasm_find_label_addr(vasm_t* p_vasm, string_view_t p_name)
 {
-    for (size_t i = 0; i < p_lt->labels_size; ++i)
+    for (size_t i = 0; i < p_vasm->labels_size; ++i)
     {
-        if (sv_equal(p_lt->labels[i].name, p_name))
-            return p_lt->labels[i].addr;
+        if (sv_equal(p_vasm->labels[i].name, p_name))
+            return p_vasm->labels[i].addr;
     }
 
     fprintf(stderr, "[ERROR]: label `%.*s` does not exist\n", (int)p_name.count, p_name.data);
     exit(1);
 }
 
-void label_table_push(label_table_t* p_lt, string_view_t p_name, word_t p_addr)
+void vasm_push_label(vasm_t* p_vasm, string_view_t p_name, word_t p_addr)
 {
-    assert(p_lt->labels_size < VVM_LABEL_CAPACITY);
-    p_lt->labels[p_lt->labels_size++] = (label_t){
+    assert(p_vasm->labels_size < VVM_LABEL_CAPACITY);
+    p_vasm->labels[p_vasm->labels_size++] = (label_t){
         .name = p_name,
         .addr = p_addr
     };
 }
 
-void label_table_push_unresolved_jmp(label_table_t* p_lt, word_t p_addr, string_view_t p_name)
+void vasm_push_deferred_operand(vasm_t* p_vasm, word_t p_addr, string_view_t p_name)
 {
-    assert(p_lt->unresolved_jumps_size < VVM_UNRESOLVED_JMPS_CAPACITY);
-    p_lt->unresolved_jumps[p_lt->unresolved_jumps_size++] = (unresolved_jump_t){
+    assert(p_vasm->deferred_operands_size < VVM_DEFERRED_OPERANDS_CAPACITY);
+    p_vasm->deferred_operands[p_vasm->deferred_operands_size++] = (deferred_operand_t){
         .addr = p_addr,
         .label = p_name,
     };
@@ -557,7 +557,7 @@ void vm_save_program_to_file(const vvm_t* p_vm, const char* p_file_path)
     fclose(f);
 }
 
-void vm_translate_source(string_view_t p_source, vvm_t* p_vm, label_table_t* p_lt)
+void vm_translate_source(string_view_t p_source, vvm_t* p_vm, vasm_t* p_vasm)
 {
     while (p_source.count > 0)
     {
@@ -574,53 +574,56 @@ void vm_translate_source(string_view_t p_source, vvm_t* p_vm, label_table_t* p_l
                     .count = inst_name.count - 1,
                     .data = inst_name.data
                 };
-                label_table_push(p_lt, label, p_vm->program_size);
+                vasm_push_label(p_vasm, label, p_vm->program_size);
 
                 // Try to repeat the instruction name.
                 inst_name = sv_trim(sv_chop_by_delim(&line, ' '));
             } 
             
-            string_view_t operand = sv_trim(sv_chop_by_delim(&line, '#'));
-            if (sv_equal(inst_name, cstr_as_sv("nop"))) {
-                p_vm->program[p_vm->program_size++] = (inst_t){0};
-            } else if (sv_equal(inst_name, cstr_as_sv("push"))) {
-                p_vm->program[p_vm->program_size++] = (inst_t){
-                    .type = INST_PUSH, 
-                    .operand = sv_to_int(operand)
-                };
-            } else if (sv_equal(inst_name, cstr_as_sv("rdup"))) {
-                p_vm->program[p_vm->program_size++] = (inst_t){
-                    .type = INST_DUP_REL, 
-                    .operand = sv_to_int(operand)
-                };
-            } else if (sv_equal(inst_name, cstr_as_sv("add"))) {
-                p_vm->program[p_vm->program_size++] = (inst_t){
-                    .type = INST_PLUS
-                };
-            } else if (sv_equal(inst_name, cstr_as_sv("jmp"))) {
-                if (operand.count > 0 && isdigit(*operand.data)) {
+            if (inst_name.count > 0)
+            {
+                string_view_t operand = sv_trim(sv_chop_by_delim(&line, '#'));
+                if (sv_equal(inst_name, cstr_as_sv("nop"))) {
+                    p_vm->program[p_vm->program_size++] = (inst_t){0};
+                } else if (sv_equal(inst_name, cstr_as_sv("push"))) {
                     p_vm->program[p_vm->program_size++] = (inst_t){
-                        .type = INST_JMP,
+                        .type = INST_PUSH, 
                         .operand = sv_to_int(operand)
                     };
-                } else {
-                    label_table_push_unresolved_jmp(p_lt, p_vm->program_size, operand);
+                } else if (sv_equal(inst_name, cstr_as_sv("rdup"))) {
                     p_vm->program[p_vm->program_size++] = (inst_t){
-                        .type = INST_JMP
+                        .type = INST_DUP_REL, 
+                        .operand = sv_to_int(operand)
                     };
+                } else if (sv_equal(inst_name, cstr_as_sv("add"))) {
+                    p_vm->program[p_vm->program_size++] = (inst_t){
+                        .type = INST_PLUS
+                    };
+                } else if (sv_equal(inst_name, cstr_as_sv("jmp"))) {
+                    if (operand.count > 0 && isdigit(*operand.data)) {
+                        p_vm->program[p_vm->program_size++] = (inst_t){
+                            .type = INST_JMP,
+                            .operand = sv_to_int(operand)
+                        };
+                    } else {
+                        vasm_push_deferred_operand(p_vasm, p_vm->program_size, operand);
+                        p_vm->program[p_vm->program_size++] = (inst_t){
+                            .type = INST_JMP
+                        };
+                    }
+                } else {
+                    fprintf(stderr, "[ERROR]: Unknown Instruction `%.*s`.\n", (int)inst_name.count, inst_name.data);
+                    exit(1);
                 }
-            } else {
-                fprintf(stderr, "[ERROR]: Unknown Instruction `%.*s`.\n", (int)inst_name.count, inst_name.data);
-                exit(1);
             }
         }
     }
 
     // Second pass to resolve labels.
-    for (size_t i = 0; i < p_lt->unresolved_jumps_size; ++i)
+    for (size_t i = 0; i < p_vasm->deferred_operands_size; ++i)
     {
-        word_t addr = label_table_find(p_lt, p_lt->unresolved_jumps[i].label);
-        p_vm->program[p_lt->unresolved_jumps[i].addr].operand = addr;
+        word_t addr = vasm_find_label_addr(p_vasm, p_vasm->deferred_operands[i].label);
+        p_vm->program[p_vasm->deferred_operands[i].addr].operand = addr;
     }
 }
 
