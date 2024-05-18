@@ -61,6 +61,7 @@ typedef enum {
 
     INST_PUSH,
     INST_DUP_REL,
+    INST_SWAP,
 
     INST_ADDI,
     INST_SUBI,
@@ -315,26 +316,27 @@ const char* inst_name(inst_type p_type)
 {
     switch (p_type)
     {
-        case INST_NOP:         return "nop";
+        case INST_NOP:          return "nop";
 
-        case INST_PUSH:        return "push";
-        case INST_DUP_REL:         return "rdup";
+        case INST_PUSH:         return "push";
+        case INST_DUP_REL:      return "rdup";
+        case INST_SWAP:         return "swap";
 
-        case INST_ADDI:       return "addi";
-        case INST_SUBI:      return "subi";
-        case INST_MULI:       return "muli";
-        case INST_DIVI:        return "divi";
-        case INST_ADDF:       return "addf";
-        case INST_SUBF:      return "subf";
-        case INST_MULF:       return "mulf";
-        case INST_DIVF:        return "divf";
+        case INST_ADDI:         return "addi";
+        case INST_SUBI:         return "subi";
+        case INST_MULI:         return "muli";
+        case INST_DIVI:         return "divi";
+        case INST_ADDF:         return "addf";
+        case INST_SUBF:         return "subf";
+        case INST_MULF:         return "mulf";
+        case INST_DIVF:         return "divf";
 
-        case INST_JMP:         return "jmp";
-        case INST_JMP_NZ:      return "jnz";
-        case INST_EQ:          return "eq";
+        case INST_JMP:          return "jmp";
+        case INST_JMP_NZ:       return "jnz";
+        case INST_EQ:           return "eq";
 
-        case INST_HALT:        return "halt";
-        case INST_PRINT_DEBUG: return "print_debug";
+        case INST_HALT:         return "halt";
+        case INST_PRINT_DEBUG:  return "print_debug";
         case NUMBER_OF_INSTS:
         default: assert(0 && "inst_name: unreachable");
     }
@@ -343,26 +345,27 @@ const char* inst_name(inst_type p_type)
 int inst_has_operand(inst_type p_type)
 {
     switch (p_type) {
-        case INST_NOP:         return 0;
+        case INST_NOP:          return 0;
 
-        case INST_PUSH:        return 1;
-        case INST_DUP_REL:         return 1;
+        case INST_PUSH:         return 1;
+        case INST_DUP_REL:      return 1;
+        case INST_SWAP:         return 0;
 
-        case INST_ADDI:       return 0;
-        case INST_SUBI:      return 0;
-        case INST_MULI:       return 0;
-        case INST_DIVI:        return 0;
-        case INST_ADDF:       return 0;
-        case INST_SUBF:      return 0;
-        case INST_MULF:       return 0;
-        case INST_DIVF:        return 0;
+        case INST_ADDI:         return 0;
+        case INST_SUBI:         return 0;
+        case INST_MULI:         return 0;
+        case INST_DIVI:         return 0;
+        case INST_ADDF:         return 0;
+        case INST_SUBF:         return 0;
+        case INST_MULF:         return 0;
+        case INST_DIVF:         return 0;
 
-        case INST_JMP:         return 1;
-        case INST_JMP_NZ:      return 1;
-        case INST_EQ:          return 0;
+        case INST_JMP:          return 1;
+        case INST_JMP_NZ:       return 1;
+        case INST_EQ:           return 0;
 
-        case INST_HALT:        return 0;
-        case INST_PRINT_DEBUG: return 0;
+        case INST_HALT:         return 0;
+        case INST_PRINT_DEBUG:  return 0;
         case NUMBER_OF_INSTS:
         default: assert(0 && "inst_name: unreachable");
     }
@@ -378,6 +381,8 @@ const char* inst_type_as_cstr(inst_type p_type)
             return "INST_PUSH";
         case INST_DUP_REL:
             return "INST_DUP_REL";
+        case INST_SWAP:
+            return "INST_SWAP";
         case INST_ADDI:
             return "INST_ADDI";
         case INST_SUBI:
@@ -466,6 +471,15 @@ error vm_execute_inst(vvm_t* p_vm)
                 return ERR_STACK_UNDERFLOW;
             p_vm->stack[p_vm->stack_size].as_u64 = p_vm->stack[p_vm->stack_size - 1 - inst.operand.as_u64].as_u64;
             p_vm->stack_size++;
+            p_vm->inst_pointer++;
+            break;
+
+        case INST_SWAP:
+            if (p_vm->stack_size < 2)
+                return ERR_STACK_UNDERFLOW;
+            word_t t = p_vm->stack[p_vm->stack_size - 1];
+            p_vm->stack[p_vm->stack_size - 1] = p_vm->stack[p_vm->stack_size - 2];
+            p_vm->stack[p_vm->stack_size - 2] = t;
             p_vm->inst_pointer++;
             break;
 
@@ -722,6 +736,10 @@ void vm_translate_source(string_view_t p_source, vvm_t* p_vm, vasm_t* p_vasm)
                         .type = INST_DUP_REL, 
                         .operand = { .as_i64 = sv_to_int(operand) }
                     };
+                } else if (sv_equal(token, cstr_as_sv(inst_name(INST_SWAP)))) {
+                    p_vm->program[p_vm->program_size++] = (inst_t){
+                        .type = INST_SWAP
+                    };
                 } else if (sv_equal(token, cstr_as_sv(inst_name(INST_ADDI)))) {
                     p_vm->program[p_vm->program_size++] = (inst_t){
                         .type = INST_ADDI
@@ -729,6 +747,10 @@ void vm_translate_source(string_view_t p_source, vvm_t* p_vm, vasm_t* p_vasm)
                 } else if (sv_equal(token, cstr_as_sv(inst_name(INST_ADDF)))) {
                     p_vm->program[p_vm->program_size++] = (inst_t){
                         .type = INST_ADDF
+                    };
+                } else if (sv_equal(token, cstr_as_sv(inst_name(INST_MULF)))) {
+                    p_vm->program[p_vm->program_size++] = (inst_t){
+                        .type = INST_MULF
                     };
                 } else if (sv_equal(token, cstr_as_sv(inst_name(INST_DIVF)))) {
                     p_vm->program[p_vm->program_size++] = (inst_t){

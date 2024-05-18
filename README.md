@@ -28,6 +28,7 @@ As of now, the instruction set of VASM consists of the following instructions:
 - [x] ``nop`` does nothing and increments the program counter.
 - [x] ``push <x>`` pushes the integer value of `x` onto the top of the stack. If the stack size is greater than the stack capacity, we invoke ``ERR_STACK_OVERFLOW``.
 - [x] ``rdup <x>`` duplicates the integer which is `x` below the top of the stack. `0` in this case refers to the top of the stack. If the stack size is greater than the stack capacity, we invoke ``ERR_STACK_OVERFLOW``. If the desired relative address `x` is greater than the current stack size, then we invoke ``ERR_STACK_UNDERFLOW``. If the desired relative address `x` is less than `0`, we invoke ``ERR_ILLEGAL_OPERAND``.
+- [x] ``swap`` swaps the top two elements on the stack with eachother. If the stack has less than two elements, then we invoke ``ERR_STACK_UNDERFLOW``.
 - [x] ``addi`` adds the top two elements of the stack together, eliminating the operands from the stack and leaving the result. If the stack size is less than `2`, we invoke ``ERR_STACK_UNDERFLOW``.
 - [ ] ``subi`` subtracts the top two elements of the stack together, eliminating the operands from the stack and leaving the result. If the stack size is less than `2`, we invoke ``ERR_STACK_UNDERFLOW``.
 - [ ] ``muli`` multiplies the top two elements of the stack together, eliminating the operands from the stack and leaving the result. If the stack size is less than `2`, we invoke ``ERR_STACK_UNDERFLOW``.
