@@ -602,7 +602,7 @@ void vm_dump_stack(FILE* p_stream, const vvm_t* p_vm)
     fprintf(p_stream, "Stack:\n");
     if (p_vm->stack_size > 0)
         for (uint64_t i = 0; i < p_vm->stack_size; ++i)
-            fprintf(p_stream, "  u64: %lu, i64: %ld, 464: %lf, ptr: %p\n", 
+            fprintf(p_stream, "  u64: %lu, i64: %ld, f64: %lf, ptr: %p\n", 
                 p_vm->stack[i].as_u64,
                 p_vm->stack[i].as_i64,
                 p_vm->stack[i].as_f64,
