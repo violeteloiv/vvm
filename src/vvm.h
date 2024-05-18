@@ -54,16 +54,22 @@ typedef union {
     void* as_ptr;
 } word_t;
 
+word_t number_literal_as_word(string_view_t p_sv);
+
 typedef enum {
     INST_NOP = 0,
 
     INST_PUSH,
     INST_DUP_REL,
 
-    INST_PLUS,
-    INST_MINUS,
-    INST_MULT,
-    INST_DIV,
+    INST_ADDI,
+    INST_SUBI,
+    INST_MULI,
+    INST_DIVI,
+    INST_ADDF,
+    INST_SUBF,
+    INST_MULF,
+    INST_DIVF,
     
     INST_JMP,
     INST_JMP_NZ,
@@ -71,8 +77,11 @@ typedef enum {
 
     INST_HALT,
     INST_PRINT_DEBUG,
+    NUMBER_OF_INSTS,
 } inst_type;
 
+const char *inst_name(inst_type p_type);
+int inst_has_operand(inst_type p_type);
 const char* inst_type_as_cstr(inst_type p_type);
 
 typedef struct {
@@ -277,6 +286,88 @@ const char* error_as_cstr(error p_error)
     }
 }
 
+word_t number_literal_as_word(string_view_t p_sv)
+{
+    assert(p_sv.count < 1024);
+    char cstr[p_sv.count + 1];
+    char* endptr = 0;
+
+    memcpy(cstr, p_sv.data, p_sv.count);
+    cstr[p_sv.count] = '\0';
+
+    word_t result = {0};
+
+    result.as_u64 = strtoull(cstr, &endptr, 10);
+    if ((size_t)(endptr - cstr) != p_sv.count)
+    {
+        result.as_f64 = strtod(cstr, &endptr);
+        if ((size_t)(endptr - cstr) != p_sv.count)
+        {
+            fprintf(stderr, "[ERROR]: `%s` is not a number literal\n", cstr);
+            exit(1);
+        }
+    }
+
+    return result;
+}
+
+const char* inst_name(inst_type p_type)
+{
+    switch (p_type)
+    {
+        case INST_NOP:         return "nop";
+
+        case INST_PUSH:        return "push";
+        case INST_DUP_REL:         return "rdup";
+
+        case INST_ADDI:       return "addi";
+        case INST_SUBI:      return "subi";
+        case INST_MULI:       return "muli";
+        case INST_DIVI:        return "divi";
+        case INST_ADDF:       return "addf";
+        case INST_SUBF:      return "subf";
+        case INST_MULF:       return "mulf";
+        case INST_DIVF:        return "divf";
+
+        case INST_JMP:         return "jmp";
+        case INST_JMP_NZ:      return "jnz";
+        case INST_EQ:          return "eq";
+
+        case INST_HALT:        return "halt";
+        case INST_PRINT_DEBUG: return "print_debug";
+        case NUMBER_OF_INSTS:
+        default: assert(0 && "inst_name: unreachable");
+    }
+}
+
+int inst_has_operand(inst_type p_type)
+{
+    switch (p_type) {
+        case INST_NOP:         return 0;
+
+        case INST_PUSH:        return 1;
+        case INST_DUP_REL:         return 1;
+
+        case INST_ADDI:       return 0;
+        case INST_SUBI:      return 0;
+        case INST_MULI:       return 0;
+        case INST_DIVI:        return 0;
+        case INST_ADDF:       return 0;
+        case INST_SUBF:      return 0;
+        case INST_MULF:       return 0;
+        case INST_DIVF:        return 0;
+
+        case INST_JMP:         return 1;
+        case INST_JMP_NZ:      return 1;
+        case INST_EQ:          return 0;
+
+        case INST_HALT:        return 0;
+        case INST_PRINT_DEBUG: return 0;
+        case NUMBER_OF_INSTS:
+        default: assert(0 && "inst_name: unreachable");
+    }
+}
+
 const char* inst_type_as_cstr(inst_type p_type)
 {
     switch (p_type)
@@ -287,14 +378,22 @@ const char* inst_type_as_cstr(inst_type p_type)
             return "INST_PUSH";
         case INST_DUP_REL:
             return "INST_DUP_REL";
-        case INST_PLUS:
-            return "INST_PLUS";
-        case INST_MINUS:
-            return "INST_MINUS";
-        case INST_MULT:
-            return "INST_MULT";
-        case INST_DIV:
-            return "INST_DIV";
+        case INST_ADDI:
+            return "INST_ADDI";
+        case INST_SUBI:
+            return "INST_SUBI";
+        case INST_MULI:
+            return "INST_MULI";
+        case INST_DIVI:
+            return "INST_DIVI";
+        case INST_ADDF:
+            return "INST_ADDF";
+        case INST_SUBF:
+            return "INST_SUBF";
+        case INST_MULF:
+            return "INST_MULF";
+        case INST_DIVF:
+            return "INST_DIVF";
         case INST_JMP:
             return "INST_JMP";
         case INST_JMP_NZ:
@@ -305,6 +404,7 @@ const char* inst_type_as_cstr(inst_type p_type)
             return "INST_HALT";
         case INST_PRINT_DEBUG:
             return "INST_PRINT_DEBUG";
+        case NUMBER_OF_INSTS:
         default:
             assert(0 && "inst_type_as_cstr: Unreachable (How Did You Get Here)");
     }
@@ -369,7 +469,7 @@ error vm_execute_inst(vvm_t* p_vm)
             p_vm->inst_pointer++;
             break;
 
-        case INST_PLUS:
+        case INST_ADDI:
             if (p_vm->stack_size < 2)
                 return ERR_STACK_UNDERFLOW;
             p_vm->stack[p_vm->stack_size - 2].as_u64 += p_vm->stack[p_vm->stack_size - 1].as_u64;
@@ -377,7 +477,7 @@ error vm_execute_inst(vvm_t* p_vm)
             p_vm->inst_pointer++;
             break; 
 
-        case INST_MINUS:
+        case INST_SUBI:
             if (p_vm->stack_size < 2)
                 return ERR_STACK_UNDERFLOW;
             p_vm->stack[p_vm->stack_size - 2].as_u64 -= p_vm->stack[p_vm->stack_size - 1].as_u64;
@@ -385,7 +485,7 @@ error vm_execute_inst(vvm_t* p_vm)
             p_vm->inst_pointer++;
             break;
         
-        case INST_MULT:
+        case INST_MULI:
             if (p_vm->stack_size < 2)
                 return ERR_STACK_UNDERFLOW;
             p_vm->stack[p_vm->stack_size - 2].as_u64 *= p_vm->stack[p_vm->stack_size - 1].as_u64;
@@ -393,12 +493,46 @@ error vm_execute_inst(vvm_t* p_vm)
             p_vm->inst_pointer++;
             break;
         
-        case INST_DIV:
+        case INST_DIVI:
             if (p_vm->stack_size < 2)
                 return ERR_STACK_UNDERFLOW;
             if (p_vm->stack[p_vm->stack_size - 1].as_u64 == 0)
                 return ERR_DIV_BY_ZERO;
             p_vm->stack[p_vm->stack_size - 2].as_u64 /= p_vm->stack[p_vm->stack_size - 1].as_u64;
+            p_vm->stack_size -= 1;
+            p_vm->inst_pointer++;
+            break;
+
+        case INST_ADDF:
+            if (p_vm->stack_size < 2)
+                return ERR_STACK_UNDERFLOW;
+            p_vm->stack[p_vm->stack_size - 2].as_f64 += p_vm->stack[p_vm->stack_size - 1].as_f64;
+            p_vm->stack_size -= 1;
+            p_vm->inst_pointer++;
+            break;
+
+        case INST_SUBF:
+            if (p_vm->stack_size < 2)
+                return ERR_STACK_UNDERFLOW;
+            p_vm->stack[p_vm->stack_size - 2].as_f64 -= p_vm->stack[p_vm->stack_size - 1].as_f64;
+            p_vm->stack_size -= 1;
+            p_vm->inst_pointer++;
+            break;
+        
+        case INST_MULF:
+            if (p_vm->stack_size < 2)
+                return ERR_STACK_UNDERFLOW;
+            p_vm->stack[p_vm->stack_size - 2].as_f64 *= p_vm->stack[p_vm->stack_size - 1].as_f64;
+            p_vm->stack_size -= 1;
+            p_vm->inst_pointer++;
+            break;
+        
+        case INST_DIVF:
+            if (p_vm->stack_size < 2)
+                return ERR_STACK_UNDERFLOW;
+            if (p_vm->stack[p_vm->stack_size - 1].as_f64 == 0.0)
+                return ERR_DIV_BY_ZERO;
+            p_vm->stack[p_vm->stack_size - 2].as_f64 /= p_vm->stack[p_vm->stack_size - 1].as_f64;
             p_vm->stack_size -= 1;
             p_vm->inst_pointer++;
             break;
@@ -438,6 +572,7 @@ error vm_execute_inst(vvm_t* p_vm)
             p_vm->inst_pointer++;
             break;
         
+        case NUMBER_OF_INSTS:
         default:
             return ERR_ILLEGAL_INSTRUCTION;
     }
@@ -559,39 +694,47 @@ void vm_translate_source(string_view_t p_source, vvm_t* p_vm, vasm_t* p_vasm)
         if (line.count > 0 && *line.data != '#')
         {
             line = sv_trim_left(line);
-            string_view_t inst_name = sv_chop_by_delim(&line, ' ');
+            string_view_t token = sv_chop_by_delim(&line, ' ');
 
-            if (inst_name.count > 0 && inst_name.data[inst_name.count - 1] == ':') {
+            if (token.count > 0 && token.data[token.count - 1] == ':') {
                 string_view_t label = {
-                    .count = inst_name.count - 1,
-                    .data = inst_name.data
+                    .count = token.count - 1,
+                    .data = token.data
                 };
                 vasm_push_label(p_vasm, label, p_vm->program_size);
 
                 // Try to repeat the instruction name.
-                inst_name = sv_trim(sv_chop_by_delim(&line, ' '));
+                token = sv_trim(sv_chop_by_delim(&line, ' '));
             } 
             
-            if (inst_name.count > 0)
+            if (token.count > 0)
             {
                 string_view_t operand = sv_trim(sv_chop_by_delim(&line, '#'));
-                if (sv_equal(inst_name, cstr_as_sv("nop"))) {
+                if (sv_equal(token, cstr_as_sv(inst_name(INST_NOP)))) {
                     p_vm->program[p_vm->program_size++] = (inst_t){0};
-                } else if (sv_equal(inst_name, cstr_as_sv("push"))) {
+                } else if (sv_equal(token, cstr_as_sv(inst_name(INST_PUSH)))) {
                     p_vm->program[p_vm->program_size++] = (inst_t){
                         .type = INST_PUSH, 
-                        .operand = { .as_i64 = sv_to_int(operand) }
+                        .operand = number_literal_as_word(operand),
                     };
-                } else if (sv_equal(inst_name, cstr_as_sv("rdup"))) {
+                } else if (sv_equal(token, cstr_as_sv(inst_name(INST_DUP_REL)))) {
                     p_vm->program[p_vm->program_size++] = (inst_t){
                         .type = INST_DUP_REL, 
                         .operand = { .as_i64 = sv_to_int(operand) }
                     };
-                } else if (sv_equal(inst_name, cstr_as_sv("add"))) {
+                } else if (sv_equal(token, cstr_as_sv(inst_name(INST_ADDI)))) {
                     p_vm->program[p_vm->program_size++] = (inst_t){
-                        .type = INST_PLUS
+                        .type = INST_ADDI
                     };
-                } else if (sv_equal(inst_name, cstr_as_sv("jmp"))) {
+                } else if (sv_equal(token, cstr_as_sv(inst_name(INST_ADDF)))) {
+                    p_vm->program[p_vm->program_size++] = (inst_t){
+                        .type = INST_ADDF
+                    };
+                } else if (sv_equal(token, cstr_as_sv(inst_name(INST_DIVF)))) {
+                    p_vm->program[p_vm->program_size++] = (inst_t){
+                        .type = INST_DIVF
+                    };
+                } else if (sv_equal(token, cstr_as_sv(inst_name(INST_JMP)))) {
                     if (operand.count > 0 && isdigit(*operand.data)) {
                         p_vm->program[p_vm->program_size++] = (inst_t){
                             .type = INST_JMP,
@@ -603,12 +746,12 @@ void vm_translate_source(string_view_t p_source, vvm_t* p_vm, vasm_t* p_vasm)
                             .type = INST_JMP
                         };
                     }
-                } else if (sv_equal(inst_name, cstr_as_sv("halt"))) {
+                } else if (sv_equal(token, cstr_as_sv(inst_name(INST_HALT)))) {
                         p_vm->program[p_vm->program_size++] = (inst_t){
                             .type = INST_HALT
                         };
                 } else {
-                    fprintf(stderr, "[ERROR]: Unknown Instruction `%.*s`.\n", (int)inst_name.count, inst_name.data);
+                    fprintf(stderr, "[ERROR]: Unknown Instruction `%.*s`.\n", (int)token.count, token.data);
                     exit(1);
                 }
             }

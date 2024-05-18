@@ -17,45 +17,10 @@ int main(int argc, char** argv)
 
     for (inst_addr_t i = 0; i < vm.program_size; ++i)
     {
-        switch (vm.program[i].type)
-        {
-            case INST_NOP:
-                fprintf(stdout, "nop\n");
-                break;
-            case INST_PUSH:
-                fprintf(stdout, "push %ld\n", vm.program[i].operand.as_i64);
-                break;
-            case INST_DUP_REL:
-                fprintf(stdout, "rdup %ld\n", vm.program[i].operand.as_i64);
-                break;
-            case INST_PLUS:
-                fprintf(stdout, "add\n");
-                break;
-            case INST_MINUS:
-                fprintf(stdout, "sub\n");
-                break;
-            case INST_MULT:
-                fprintf(stdout, "mul\n");
-                break;
-            case INST_DIV:
-                fprintf(stdout, "div\n");
-                break;
-            case INST_JMP:
-                fprintf(stdout, "jmp %ld\n", vm.program[i].operand.as_i64);
-                break;
-            case INST_JMP_NZ:
-                fprintf(stdout, "jnz %ld\n", vm.program[i].operand.as_i64);
-                break;
-            case INST_EQ:
-                fprintf(stdout, "eq\n");
-                break;
-            case INST_HALT:
-                fprintf(stdout, "halt\n");
-                break;
-            case INST_PRINT_DEBUG:
-                fprintf(stdout, "print_debug\n");
-                break;
-        }
+        fprintf(stdout, "%s", inst_name(vm.program[i].type));
+        if (inst_has_operand(vm.program[i].type))
+            fprintf(stdout, " %ld", vm.program[i].operand.as_i64);
+        fprintf(stdout, "\n");
     }
 
     return 0;

@@ -9,5 +9,5 @@
 loop: 
     rdup 1 # these two lines are responsible for
     rdup 1 # duplicating the previous two numbers to be added.
-    add
+    addi
     jmp loop

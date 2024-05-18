@@ -26,10 +26,13 @@ clean:
 	rm -rf ./examples/fib.vm
 
 .PHONY: examples
-examples: ./examples/fib.vm ./examples/123.vm
+examples: ./examples/fib.vm ./examples/123i.vm ./examples/123f.vm
 
 ./examples/fib.vm: ./examples/fib.vasm
 	./build/vasm ./examples/fib.vasm ./examples/fib.vm
 
-./examples/123.vm: ./examples/123.vasm
-	./build/vasm ./examples/123.vasm ./examples/123.vm
+./examples/123i.vm: ./examples/123i.vasm
+	./build/vasm ./examples/123i.vasm ./examples/123i.vm
+
+./examples/123f.vm: ./examples/123f.vasm
+	./build/vasm ./examples/123f.vasm ./examples/123f.vm
