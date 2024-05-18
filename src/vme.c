@@ -14,7 +14,7 @@ static const char* shift(int* argc, char*** argv)
 
 static void usage(FILE* p_stream, const char* p_program)
 {
-    fprintf(p_stream, "Usage: %s -i <input.vm> [-l <limit>] [-h]\n", p_program);
+    fprintf(p_stream, "Usage: %s -i <input.vm> [-l <limit>] [-h] [-d]\n", p_program);
 }
 
 vvm_t vm = {0};
@@ -24,6 +24,7 @@ int main(int argc, char** argv)
     const char* program = shift(&argc, &argv);
     const char* input_file_path = NULL;
     int limit = -1;
+    int debug = 0;
 
     while (argc > 0)
     {
@@ -48,7 +49,9 @@ int main(int argc, char** argv)
         } else if (strcmp(flag, "-h") == 0) {
             usage(stdout, program);
             exit(0);
-        }else {
+        } else if (strcmp(flag, "-d") == 0) {
+            debug = 1;
+        } else {
             usage(stderr, program);
             fprintf(stderr, "[ERROR]: Unknown Flag `%s`\n", flag);
             exit(1);
@@ -63,13 +66,32 @@ int main(int argc, char** argv)
     }
 
     vm_load_program_from_file(&vm, input_file_path);
-    error err = vm_execute_program(&vm, limit);
-    vm_dump_stack(stdout, &vm);
-
-    if (err != ERR_OK)
+    
+    if (!debug)
     {
-        fprintf(stderr, "[ERROR]: %s\n", error_as_cstr(err));
-        exit(1);
+        error err = vm_execute_program(&vm, limit);
+        vm_dump_stack(stdout, &vm);
+        if (err != ERR_OK)
+        {
+            fprintf(stderr, "[ERROR]: %s\n", error_as_cstr(err));
+            exit(1);
+        }
+    } 
+    else
+    {
+        while (limit != 0 && !vm.halt)
+        {
+            vm_dump_stack(stdout, &vm);
+            getchar();
+            error err = vm_execute_inst(&vm);
+            if (err != ERR_OK)
+            {
+                fprintf(stderr, "[ERROR]: %s\n", error_as_cstr(err));
+                exit(1);
+            }
+            if (limit > 0)
+                --limit;
+        }
     }
 
     return 0;

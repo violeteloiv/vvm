@@ -530,8 +530,8 @@ error vm_execute_inst(vvm_t* p_vm)
         case INST_DIVF:
             if (p_vm->stack_size < 2)
                 return ERR_STACK_UNDERFLOW;
-            if (p_vm->stack[p_vm->stack_size - 1].as_f64 == 0.0)
-                return ERR_DIV_BY_ZERO;
+            // if (p_vm->stack[p_vm->stack_size - 1].as_f64 == 0.0)
+             //    return ERR_DIV_BY_ZERO;
             p_vm->stack[p_vm->stack_size - 2].as_f64 /= p_vm->stack[p_vm->stack_size - 1].as_f64;
             p_vm->stack_size -= 1;
             p_vm->inst_pointer++;
