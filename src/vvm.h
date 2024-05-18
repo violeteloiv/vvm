@@ -45,14 +45,14 @@ typedef enum {
 
 const char* error_as_cstr(error p_error);
 
-typedef int64_t word_t;
+typedef uint64_t inst_addr_t;
 
-union word_t {
-    int64_t as_s64;
+typedef union {
+    int64_t as_i64;
     uint64_t as_u64;
     double as_f64;
     void* as_ptr;
-};
+} word_t;
 
 typedef enum {
     INST_NOP = 0,
@@ -82,11 +82,11 @@ typedef struct {
 
 typedef struct {
     string_view_t name;
-    word_t addr;
+    inst_addr_t addr;
 } label_t;
 
 typedef struct {
-    word_t addr;            // Address of an instruction the operand of which
+    inst_addr_t addr;            // Address of an instruction the operand of which
     string_view_t label;    // refers to a label. It's not the label address.
 } deferred_operand_t;
 
@@ -97,17 +97,17 @@ typedef struct {
     size_t deferred_operands_size;
 } vasm_t;
 
-word_t vasm_find_label_addr(vasm_t* p_vasm, string_view_t p_name);
-void vasm_push_label(vasm_t* p_vasm, string_view_t p_name, word_t p_addr);
-void vasm_push_deferred_operand(vasm_t* p_vasm, word_t p_addr, string_view_t p_name);
+inst_addr_t vasm_find_label_addr(vasm_t* p_vasm, string_view_t p_name);
+void vasm_push_label(vasm_t* p_vasm, string_view_t p_name, inst_addr_t p_addr);
+void vasm_push_deferred_operand(vasm_t* p_vasm, inst_addr_t p_addr, string_view_t p_name);
 
 typedef struct {
     word_t stack[VVM_STACK_CAPACITY];
-    word_t stack_size;
+    uint64_t stack_size;
 
     inst_t program[VVM_PROGRAM_CAPACITY];
-    word_t program_size;
-    word_t inst_pointer;
+    uint64_t program_size;
+    inst_addr_t inst_pointer;
 
     int halt;
 } vvm_t;
@@ -310,7 +310,7 @@ const char* inst_type_as_cstr(inst_type p_type)
     }
 }
 
-word_t vasm_find_label_addr(vasm_t* p_vasm, string_view_t p_name)
+inst_addr_t vasm_find_label_addr(vasm_t* p_vasm, string_view_t p_name)
 {
     for (size_t i = 0; i < p_vasm->labels_size; ++i)
     {
@@ -322,7 +322,7 @@ word_t vasm_find_label_addr(vasm_t* p_vasm, string_view_t p_name)
     exit(1);
 }
 
-void vasm_push_label(vasm_t* p_vasm, string_view_t p_name, word_t p_addr)
+void vasm_push_label(vasm_t* p_vasm, string_view_t p_name, inst_addr_t p_addr)
 {
     assert(p_vasm->labels_size < VVM_LABEL_CAPACITY);
     p_vasm->labels[p_vasm->labels_size++] = (label_t){
@@ -331,7 +331,7 @@ void vasm_push_label(vasm_t* p_vasm, string_view_t p_name, word_t p_addr)
     };
 }
 
-void vasm_push_deferred_operand(vasm_t* p_vasm, word_t p_addr, string_view_t p_name)
+void vasm_push_deferred_operand(vasm_t* p_vasm, inst_addr_t p_addr, string_view_t p_name)
 {
     assert(p_vasm->deferred_operands_size < VVM_DEFERRED_OPERANDS_CAPACITY);
     p_vasm->deferred_operands[p_vasm->deferred_operands_size++] = (deferred_operand_t){
@@ -342,7 +342,7 @@ void vasm_push_deferred_operand(vasm_t* p_vasm, word_t p_addr, string_view_t p_n
 
 error vm_execute_inst(vvm_t* p_vm)
 {
-    if (p_vm->inst_pointer < 0 || p_vm->inst_pointer >= p_vm->program_size)
+    if (p_vm->inst_pointer >= p_vm->program_size)
         return ERR_ILLEGAL_INSTRUCTION_ACCESS;
 
     inst_t inst = p_vm->program[p_vm->inst_pointer];
@@ -362,11 +362,9 @@ error vm_execute_inst(vvm_t* p_vm)
         case INST_DUP_REL:
             if (p_vm->stack_size >= VVM_STACK_CAPACITY)
                 return ERR_STACK_OVERFLOW;
-            if (p_vm->stack_size - inst.operand <= 0)
+            if (p_vm->stack_size - inst.operand.as_u64 <= 0)
                 return ERR_STACK_UNDERFLOW;
-            if (inst.operand < 0)
-                return ERR_ILLEGAL_OPERAND;
-            p_vm->stack[p_vm->stack_size] = p_vm->stack[p_vm->stack_size - 1 - inst.operand];
+            p_vm->stack[p_vm->stack_size].as_u64 = p_vm->stack[p_vm->stack_size - 1 - inst.operand.as_u64].as_u64;
             p_vm->stack_size++;
             p_vm->inst_pointer++;
             break;
@@ -374,7 +372,7 @@ error vm_execute_inst(vvm_t* p_vm)
         case INST_PLUS:
             if (p_vm->stack_size < 2)
                 return ERR_STACK_UNDERFLOW;
-            p_vm->stack[p_vm->stack_size - 2] += p_vm->stack[p_vm->stack_size - 1];
+            p_vm->stack[p_vm->stack_size - 2].as_u64 += p_vm->stack[p_vm->stack_size - 1].as_u64;
             p_vm->stack_size -= 1;
             p_vm->inst_pointer++;
             break; 
@@ -382,7 +380,7 @@ error vm_execute_inst(vvm_t* p_vm)
         case INST_MINUS:
             if (p_vm->stack_size < 2)
                 return ERR_STACK_UNDERFLOW;
-            p_vm->stack[p_vm->stack_size - 2] -= p_vm->stack[p_vm->stack_size - 1];
+            p_vm->stack[p_vm->stack_size - 2].as_u64 -= p_vm->stack[p_vm->stack_size - 1].as_u64;
             p_vm->stack_size -= 1;
             p_vm->inst_pointer++;
             break;
@@ -390,7 +388,7 @@ error vm_execute_inst(vvm_t* p_vm)
         case INST_MULT:
             if (p_vm->stack_size < 2)
                 return ERR_STACK_UNDERFLOW;
-            p_vm->stack[p_vm->stack_size - 2] *= p_vm->stack[p_vm->stack_size - 1];
+            p_vm->stack[p_vm->stack_size - 2].as_u64 *= p_vm->stack[p_vm->stack_size - 1].as_u64;
             p_vm->stack_size -= 1;
             p_vm->inst_pointer++;
             break;
@@ -398,23 +396,23 @@ error vm_execute_inst(vvm_t* p_vm)
         case INST_DIV:
             if (p_vm->stack_size < 2)
                 return ERR_STACK_UNDERFLOW;
-            if (p_vm->stack[p_vm->stack_size - 1] == 0)
+            if (p_vm->stack[p_vm->stack_size - 1].as_u64 == 0)
                 return ERR_DIV_BY_ZERO;
-            p_vm->stack[p_vm->stack_size - 2] /= p_vm->stack[p_vm->stack_size - 1];
+            p_vm->stack[p_vm->stack_size - 2].as_u64 /= p_vm->stack[p_vm->stack_size - 1].as_u64;
             p_vm->stack_size -= 1;
             p_vm->inst_pointer++;
             break;
 
         case INST_JMP:
-            p_vm->inst_pointer = inst.operand;
+            p_vm->inst_pointer = inst.operand.as_u64;
             break;
 
         case INST_JMP_NZ:
             if (p_vm->stack_size < 1)
                 return ERR_STACK_UNDERFLOW;
-            if (p_vm->stack[p_vm->stack_size - 1]) {
+            if (p_vm->stack[p_vm->stack_size - 1].as_u64) {
                 p_vm->stack_size--;
-                p_vm->inst_pointer = inst.operand;
+                p_vm->inst_pointer = inst.operand.as_u64;
             } else {
                 p_vm->inst_pointer++;
             }
@@ -423,7 +421,7 @@ error vm_execute_inst(vvm_t* p_vm)
         case INST_EQ:
             if (p_vm->stack_size < 2)
                 return ERR_STACK_UNDERFLOW;
-            p_vm->stack[p_vm->stack_size - 2] = p_vm->stack[p_vm->stack_size - 2] == p_vm->stack[p_vm->stack_size - 1];
+            p_vm->stack[p_vm->stack_size - 2].as_u64 = p_vm->stack[p_vm->stack_size - 2].as_u64 == p_vm->stack[p_vm->stack_size - 1].as_u64;
             p_vm->stack_size -= 1;
             p_vm->inst_pointer++;
             break;
@@ -435,7 +433,7 @@ error vm_execute_inst(vvm_t* p_vm)
         case INST_PRINT_DEBUG:
             if (p_vm->stack_size < 1)
                 return ERR_STACK_UNDERFLOW;
-            fprintf(stdout, "%ld\n", p_vm->stack[p_vm->stack_size - 1]);
+            fprintf(stdout, "%ld\n", p_vm->stack[p_vm->stack_size - 1].as_u64);
             p_vm->stack_size -= 1;
             p_vm->inst_pointer++;
             break;
@@ -468,8 +466,12 @@ void vm_dump_stack(FILE* p_stream, const vvm_t* p_vm)
 {
     fprintf(p_stream, "Stack:\n");
     if (p_vm->stack_size > 0)
-        for (word_t i = 0; i < p_vm->stack_size; ++i)
-            fprintf(p_stream, "  %ld\n", p_vm->stack[i]);
+        for (uint64_t i = 0; i < p_vm->stack_size; ++i)
+            fprintf(p_stream, "  u64: %lu, i64: %ld, 464: %lf, ptr: %p\n", 
+                p_vm->stack[i].as_u64,
+                p_vm->stack[i].as_i64,
+                p_vm->stack[i].as_f64,
+                p_vm->stack[i].as_ptr);
     else
         fprintf(p_stream, "  [Empty]\n");
 }
@@ -578,12 +580,12 @@ void vm_translate_source(string_view_t p_source, vvm_t* p_vm, vasm_t* p_vasm)
                 } else if (sv_equal(inst_name, cstr_as_sv("push"))) {
                     p_vm->program[p_vm->program_size++] = (inst_t){
                         .type = INST_PUSH, 
-                        .operand = sv_to_int(operand)
+                        .operand = { .as_i64 = sv_to_int(operand) }
                     };
                 } else if (sv_equal(inst_name, cstr_as_sv("rdup"))) {
                     p_vm->program[p_vm->program_size++] = (inst_t){
                         .type = INST_DUP_REL, 
-                        .operand = sv_to_int(operand)
+                        .operand = { .as_i64 = sv_to_int(operand) }
                     };
                 } else if (sv_equal(inst_name, cstr_as_sv("add"))) {
                     p_vm->program[p_vm->program_size++] = (inst_t){
@@ -593,7 +595,7 @@ void vm_translate_source(string_view_t p_source, vvm_t* p_vm, vasm_t* p_vasm)
                     if (operand.count > 0 && isdigit(*operand.data)) {
                         p_vm->program[p_vm->program_size++] = (inst_t){
                             .type = INST_JMP,
-                            .operand = sv_to_int(operand)
+                            .operand = { .as_i64 = sv_to_int(operand) }
                         };
                     } else {
                         vasm_push_deferred_operand(p_vasm, p_vm->program_size, operand);
@@ -616,8 +618,8 @@ void vm_translate_source(string_view_t p_source, vvm_t* p_vm, vasm_t* p_vasm)
     // Second pass to resolve labels.
     for (size_t i = 0; i < p_vasm->deferred_operands_size; ++i)
     {
-        word_t addr = vasm_find_label_addr(p_vasm, p_vasm->deferred_operands[i].label);
-        p_vm->program[p_vasm->deferred_operands[i].addr].operand = addr;
+        inst_addr_t addr = vasm_find_label_addr(p_vasm, p_vasm->deferred_operands[i].label);
+        p_vm->program[p_vasm->deferred_operands[i].addr].operand.as_u64 = addr;
     }
 }
 

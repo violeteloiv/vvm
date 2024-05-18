@@ -15,7 +15,7 @@ int main(int argc, char** argv)
     const char* input_file_path = argv[1];
     vm_load_program_from_file(&vm, input_file_path);
 
-    for (word_t i = 0; i < vm.program_size; ++i)
+    for (inst_addr_t i = 0; i < vm.program_size; ++i)
     {
         switch (vm.program[i].type)
         {
@@ -23,10 +23,10 @@ int main(int argc, char** argv)
                 fprintf(stdout, "nop\n");
                 break;
             case INST_PUSH:
-                fprintf(stdout, "push %ld\n", vm.program[i].operand);
+                fprintf(stdout, "push %ld\n", vm.program[i].operand.as_i64);
                 break;
             case INST_DUP_REL:
-                fprintf(stdout, "rdup %ld\n", vm.program[i].operand);
+                fprintf(stdout, "rdup %ld\n", vm.program[i].operand.as_i64);
                 break;
             case INST_PLUS:
                 fprintf(stdout, "add\n");
@@ -41,10 +41,10 @@ int main(int argc, char** argv)
                 fprintf(stdout, "div\n");
                 break;
             case INST_JMP:
-                fprintf(stdout, "jmp %ld\n", vm.program[i].operand);
+                fprintf(stdout, "jmp %ld\n", vm.program[i].operand.as_i64);
                 break;
             case INST_JMP_NZ:
-                fprintf(stdout, "jnz %ld\n", vm.program[i].operand);
+                fprintf(stdout, "jnz %ld\n", vm.program[i].operand.as_i64);
                 break;
             case INST_EQ:
                 fprintf(stdout, "eq\n");
