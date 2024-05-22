@@ -22,11 +22,13 @@ clean:
 	rm -rf ./build/vasm
 	rm -rf ./build/vme
 	rm -rf ./build/devasm
-	rm -rf ./examples/123.vm
+	rm -rf ./examples/123i.vm
+	rm -rf ./examples/123f.vm
 	rm -rf ./examples/fib.vm
+	rm -rf ./examples/e.vm
 
 .PHONY: examples
-examples: ./examples/fib.vm ./examples/123i.vm ./examples/123f.vm ./examples/test.vm
+examples: ./examples/fib.vm ./examples/123i.vm ./examples/123f.vm ./examples/e.vm
 
 ./examples/fib.vm: ./examples/fib.vasm
 	./build/vasm ./examples/fib.vasm ./examples/fib.vm
@@ -37,5 +39,5 @@ examples: ./examples/fib.vm ./examples/123i.vm ./examples/123f.vm ./examples/tes
 ./examples/123f.vm: ./examples/123f.vasm
 	./build/vasm ./examples/123f.vasm ./examples/123f.vm
 
-./examples/test.vm: ./examples/test.vasm
-	./build/vasm ./examples/test.vasm ./examples/test.vm
+./examples/e.vm: ./examples/e.vasm
+	./build/vasm ./examples/e.vasm ./examples/e.vm

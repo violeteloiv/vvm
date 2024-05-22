@@ -1,0 +1,29 @@
+push 1.0 # n
+push 1.0 # n!
+push 1.0 # sum
+
+loop:
+	push 1.0
+	rdup 2
+	divf
+	addf
+	swap 2
+	
+	push 1.0
+	addf
+	rdup 0
+	swap 2
+	mulf
+
+	swap 1
+	swap 2
+
+	rdup 2
+	push 100.0
+	geq
+
+	jnz loop
+
+print_debug
+
+halt

@@ -70,7 +70,7 @@ int main(int argc, char** argv)
     if (!debug)
     {
         error err = vm_execute_program(&vm, limit);
-        vm_dump_stack(stdout, &vm);
+        // vm_dump_stack(stdout, &vm);
         if (err != ERR_OK)
         {
             fprintf(stderr, "[ERROR]: %s\n", error_as_cstr(err));
@@ -81,7 +81,7 @@ int main(int argc, char** argv)
     {
         while (limit != 0 && !vm.halt)
         {
-            vm_dump_stack(stdout, &vm);
+            // vm_dump_stack(stdout, &vm);
             getchar();
             error err = vm_execute_inst(&vm);
             if (err != ERR_OK)
