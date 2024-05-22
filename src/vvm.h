@@ -781,9 +781,25 @@ void vm_translate_source(string_view_t p_source, vvm_t* p_vm, vasm_t* p_vasm)
                     p_vm->program[p_vm->program_size++] = (inst_t){
                         .type = INST_ADDI
                     };
+                } else if (sv_equal(token, cstr_as_sv(inst_name(INST_SUBI)))) {
+                    p_vm->program[p_vm->program_size++] = (inst_t){
+                        .type = INST_SUBI
+                    };
+                } else if (sv_equal(token, cstr_as_sv(inst_name(INST_MULI)))) {
+                    p_vm->program[p_vm->program_size++] = (inst_t){
+                        .type = INST_MULI
+                    };
+                } else if (sv_equal(token, cstr_as_sv(inst_name(INST_DIVI)))) {
+                    p_vm->program[p_vm->program_size++] = (inst_t){
+                        .type = INST_DIVI
+                    };
                 } else if (sv_equal(token, cstr_as_sv(inst_name(INST_ADDF)))) {
                     p_vm->program[p_vm->program_size++] = (inst_t){
                         .type = INST_ADDF
+                    };
+                } else if (sv_equal(token, cstr_as_sv(inst_name(INST_SUBF)))) {
+                    p_vm->program[p_vm->program_size++] = (inst_t){
+                        .type = INST_SUBF
                     };
                 } else if (sv_equal(token, cstr_as_sv(inst_name(INST_MULF)))) {
                     p_vm->program[p_vm->program_size++] = (inst_t){

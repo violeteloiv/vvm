@@ -3,6 +3,8 @@
 CFLAGS = -Wall -Wextra -Wswitch-enum -Wmissing-prototypes -std=c11 -pedantic
 LIBS   =
 
+EXAMPLES = ./examples/fib.vm ./examples/123i.vm ./examples/123f.vm ./examples/e.vm ./examples/pi.vm
+
 .PHONY = clean
 
 .PHONY: all
@@ -26,18 +28,10 @@ clean:
 	rm -rf ./examples/123f.vm
 	rm -rf ./examples/fib.vm
 	rm -rf ./examples/e.vm
+	rm -rf ./examples/pi.vm
 
 .PHONY: examples
-examples: ./examples/fib.vm ./examples/123i.vm ./examples/123f.vm ./examples/e.vm
+examples: $(EXAMPLES)
 
-./examples/fib.vm: ./examples/fib.vasm
-	./build/vasm ./examples/fib.vasm ./examples/fib.vm
-
-./examples/123i.vm: ./examples/123i.vasm
-	./build/vasm ./examples/123i.vasm ./examples/123i.vm
-
-./examples/123f.vm: ./examples/123f.vasm
-	./build/vasm ./examples/123f.vasm ./examples/123f.vm
-
-./examples/e.vm: ./examples/e.vasm
-	./build/vasm ./examples/e.vasm ./examples/e.vm
+%.vm: %.vasm vasm
+	./build/vasm $< $@
