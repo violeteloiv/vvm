@@ -24,6 +24,14 @@ loop:
 
 	jnz loop
 
+# clean up stack
+
+swap 2
+push 0.0
+mulf
+mulf
+subf
+
 print_debug
 
 halt

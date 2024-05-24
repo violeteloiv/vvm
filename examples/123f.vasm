@@ -5,4 +5,7 @@ addf
 addf
 push -0.0
 divf
+
+print_debug
+
 halt

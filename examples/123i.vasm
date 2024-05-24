@@ -3,4 +3,7 @@ push 2
 push 3
 addi
 addi
+
+print_debug
+
 halt

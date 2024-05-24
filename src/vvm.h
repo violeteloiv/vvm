@@ -611,14 +611,15 @@ error vm_execute_inst(vvm_t* p_vm)
             break;
 
         case INST_PRINT_DEBUG:
-            if (p_vm->stack_size < 1)
-               return ERR_STACK_UNDERFLOW;
-            fprintf(stdout, "  u64: %lu, i64: %ld, f64: %lf, ptr: %p\n", 
-                p_vm->stack[p_vm->stack_size - 1].as_u64,
-                p_vm->stack[p_vm->stack_size - 1].as_i64,
-                p_vm->stack[p_vm->stack_size - 1].as_f64,
-                p_vm->stack[p_vm->stack_size - 1].as_ptr);
-            p_vm->stack_size -= 1;
+            //if (p_vm->stack_size < 1)
+            //   return ERR_STACK_UNDERFLOW;
+            // fprintf(stdout, "  u64: %lu, i64: %ld, f64: %lf, ptr: %p\n", 
+            //     p_vm->stack[p_vm->stack_size - 1].as_u64,
+            //     p_vm->stack[p_vm->stack_size - 1].as_i64,
+            //     p_vm->stack[p_vm->stack_size - 1].as_f64,
+            //     p_vm->stack[p_vm->stack_size - 1].as_ptr);
+            vm_dump_stack(stdout, p_vm);
+            //p_vm->stack_size -= 1;
             p_vm->inst_pointer++;
             break;
         
