@@ -3,8 +3,6 @@ push 2.0
 push 3.0
 addf
 addf
-push -0.0
-divf
 
 print_debug
 

@@ -7,7 +7,7 @@ EXAMPLES = ./examples/fib.vm ./examples/123i.vm ./examples/123f.vm ./examples/e.
 
 .PHONY = clean
 
-.PHONY: all
+.PHONY: all examples
 all: vasm vme devasm
 
 # $@: name of target, $^ is all the depedencies
@@ -30,7 +30,6 @@ clean:
 	rm -rf ./examples/e.vm
 	rm -rf ./examples/pi.vm
 
-.PHONY: examples
 examples: $(EXAMPLES)
 
 %.vm: %.vasm vasm
